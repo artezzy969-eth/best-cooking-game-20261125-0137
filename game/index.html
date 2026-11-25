@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sizzle Station — Fast-Paced Cooking Game</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%94%A5%3C/text%3E%3C/svg%3E">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1280px; height: 860px; overflow: hidden; background: #1c1008; }
+  body {
+    font-family: "Trebuchet MS", "Segoe UI", Verdana, sans-serif;
+    color: #fff7e8;
+    -webkit-user-select: none; user-select: none;
+  }
+
+  /* ---------- Stage: fixed 1280 x 860, no scrolling ---------- */
+  #stage { position: relative; width: 1280px; height: 860px; overflow: hidden; }
+  #game {
+    position: absolute; left: 0; top: 0;
+    width: 1280px; height: 860px;
+    display: block; background: #2a1a0e;
+    cursor: pointer;
+  }
+
+  /* ---------- Top strip: day + clock ---------- */
+  #hud-top {
+    position: absolute; left: 0; top: 0; width: 1280px; height: 46px;
+    display: flex; align-items: center; gap: 18px;
+    padding: 0 18px;
+    background: linear-gradient(180deg, rgba(20,10,4,.88), rgba(20,10,4,.55) 78%, rgba(20,10,4,0));
+    pointer-events: none; z-index: 5;
+  }
+  #hud-top .brand {
+    font-size: 22px; font-weight: 900; letter-spacing: 2px;
+    color: #ffb63d; text-shadow: 0 2px 0 rgba(0,0,0,.55);
+    white-space: nowrap;
+  }
+  #hud-top .brand small { color: #ffe9b0; font-size: 12px; letter-spacing: 3px; }
+  #hud-day-wrap { flex: 1; display: flex; align-items: center; gap: 10px; }
+  #hud-day-wrap .lbl { font-size: 12px; font-weight: 700; letter-spacing: 1px; color: #ffd98a; white-space: nowrap; }
+  #hud-day { flex: 1; height: 12px; border-radius: 6px; background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.25); overflow: hidden; }
+  #hud-day-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #ff9d2e, #ffd23d); transition: width .3s linear; }
+  #hud-day-text { font-size: 13px; font-weight: 700; color: #ffe9b0; white-space: nowrap; }
+  #btn-pause {
+    pointer-events: auto; border: 1px solid rgba(255,255,255,.35);
+    background: rgba(0,0,0,.5); color: #fff7e8; border-radius: 8px;
+    font-size: 14px; font-weight: 700; padding: 6px 14px; cursor: pointer;
+  }
+  #btn-pause:hover { background: rgba(255,182,61,.35); }
+
+  /* ---------- Bottom HUD bar: order board + stats ---------- */
+  #hud-bar {
+    position: absolute; left: 0; bottom: 0; width: 1280px; height: 158px;
+    display: flex; gap: 14px; align-items: stretch;
+    padding: 12px 16px 14px;
+    background: linear-gradient(0deg, rgba(24,12,4,.96) 55%, rgba(24,12,4,.78) 85%, rgba(24,12,4,0));
+    z-index: 5;
+  }
+  .hud-panel {
+    background: rgba(46,26,10,.92);
+    border: 2px solid #6b4423; border-radius: 12px;
+    box-shadow: 0 4px 0 rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.12);
+    padding: 10px 12px;
+  }
+  .hud-panel h2 {
+    font-size: 12px; letter-spacing: 2px; text-transform: uppercase;
+    color: #ffb63d; margin-bottom: 8px;
+  }
+
+  /* Order board: horizontal row of order tickets (filled in by JS). */
+  #hud-order-board { flex: 1 1 auto; min-width: 0; overflow: hidden; }
+  #hud-order-board .orders { display: flex; gap: 10px; height: 96px; }
+  #hud-order-board .order-empty {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    font-size: 14px; color: #c9a276; font-style: italic;
+    border: 2px dashed rgba(255,255,255,.18); border-radius: 10px;
+  }
+  .order-ticket {
+    flex: 0 0 168px; border-radius: 10px; padding: 8px 10px;
+    background: #fff3d6; color: #3a2410; position: relative;
+    border: 2px solid #d9a441; box-shadow: 0 3px 0 rgba(0,0,0,.35);
+    font-size: 13px; line-height: 1.35;
+  }
+  .order-ticket .dish { font-weight: 900; font-size: 14px; }
+  .order-ticket .needs { color: #7a4a16; font-size: 12px; }
+  .order-ticket .patience { height: 7px; border-radius: 4px; background: #e8cfa0; margin-top: 7px; overflow: hidden; }
+  .order-ticket .patience i { display: block; height: 100%; background: #3fae5a; }
+  .order-ticket .patience i.low { background: #e0483e; }
+  .order-ticket .stars { position: absolute; top: 6px; right: 8px; color: #e8a100; font-size: 13px; letter-spacing: 1px; }
+
+  /* Timer + score column */
+  #hud-stats { flex: 0 0 300px; display: flex; flex-direction: column; gap: 8px; }
+  #hud-timer-row { display: flex; align-items: center; gap: 10px; }
+  #hud-timer-row .lbl { font-size: 12px; font-weight: 700; letter-spacing: 1px; color: #ffd98a; }
+  #hud-timer { flex: 1; height: 14px; border-radius: 7px; background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.25); overflow: hidden; }
+  #hud-timer-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #37c978, #8be04e); transition: width .2s linear; }
+  #hud-timer-fill.low { background: linear-gradient(90deg, #e0483e, #ff7a3d); }
+  #hud-timer-text { font-size: 14px; font-weight: 900; color: #fff; min-width: 44px; text-align: right; }
+  #hud-score-row { display: flex; gap: 14px; align-items: baseline; }
+  .stat { font-size: 13px; color: #ffd98a; font-weight: 700; letter-spacing: 1px; }
+  .stat b { font-size: 22px; color: #fff; font-weight: 900; margin-left: 4px; }
+  #hud-coins b { color: #ffd23d; }
+  #hud-combo b { color: #ff8a3d; }
+  #hud-keys { font-size: 11px; color: #c9a276; letter-spacing: .5px; }
+
+  /* ---------- Floating toast: score pops above the HUD bar ---------- */
+  #hud-toast {
+    position: absolute; left: 0; right: 0; bottom: 172px; z-index: 6;
+    display: flex; justify-content: center; pointer-events: none;
+  }
+  #hud-toast .pop {
+    font-size: 26px; font-weight: 900; color: #ffd23d;
+    text-shadow: 0 2px 0 rgba(0,0,0,.6), 0 0 18px rgba(255,157,46,.55);
+    animation: toast-rise 1.1s ease-out forwards;
+  }
+  #hud-toast .pop.bad { color: #ff6a5e; text-shadow: 0 2px 0 rgba(0,0,0,.6); }
+  @keyframes toast-rise {
+    0% { opacity: 0; transform: translateY(14px) scale(.85); }
+    18% { opacity: 1; transform: translateY(0) scale(1.06); }
+    100% { opacity: 0; transform: translateY(-34px) scale(1); }
+  }
+
+  /* ---------- Full-screen overlays ---------- */
+  .overlay {
+    position: absolute; inset: 0; z-index: 10;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(16,8,2,.72);
+  }
+  .overlay[hidden] { display: none; }
+  .card {
+    width: 620px; max-width: 92%;
+    background: linear-gradient(180deg, #4a2c12, #2e1a08);
+    border: 3px solid #ffb63d; border-radius: 20px;
+    padding: 34px 40px 30px; text-align: center;
+    box-shadow: 0 18px 50px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.15);
+  }
+  .card h1 {
+    font-size: 56px; font-weight: 900; letter-spacing: 2px;
+    color: #ffb63d; text-shadow: 0 3px 0 #7a3c00, 0 6px 14px rgba(0,0,0,.6);
+    line-height: 1;
+  }
+  .card h1 .flame { color: #ff5a2e; }
+  .card .tagline { margin-top: 8px; font-size: 17px; color: #ffe9b0; font-style: italic; }
+  .card h2 { font-size: 44px; font-weight: 900; color: #ffb63d; letter-spacing: 1px; }
+  .card p { font-size: 15px; line-height: 1.55; color: #f3e2c2; margin-top: 12px; }
+  .howto {
+    text-align: left; margin: 18px auto 4px; width: fit-content;
+    font-size: 15px; line-height: 1.9; color: #ffe9b0;
+  }
+  .howto b { color: #fff; background: rgba(255,182,61,.22); border: 1px solid rgba(255,182,61,.5); border-radius: 6px; padding: 1px 7px; font-size: 13px; }
+  .big-btn {
+    display: inline-block; margin-top: 22px;
+    font-family: inherit; font-size: 22px; font-weight: 900; letter-spacing: 1px;
+    color: #3a1c00; background: linear-gradient(180deg, #ffd23d, #ff9d2e);
+    border: none; border-radius: 14px; padding: 14px 44px; cursor: pointer;
+    box-shadow: 0 5px 0 #a35a00, 0 8px 18px rgba(0,0,0,.45);
+  }
+  .big-btn:hover { filter: brightness(1.07); }
+  .big-btn:active { transform: translateY(3px); box-shadow: 0 2px 0 #a35a00; }
+  .ghost-btn {
+    display: inline-block; margin-top: 14px; margin-left: 10px;
+    font-family: inherit; font-size: 16px; font-weight: 700;
+    color: #ffe9b0; background: transparent;
+    border: 2px solid rgba(255,233,176,.5); border-radius: 12px;
+    padding: 10px 22px; cursor: pointer;
+  }
+  .ghost-btn:hover { background: rgba(255,233,176,.12); }
+  .final-stats { display: flex; justify-content: center; gap: 34px; margin-top: 18px; }
+  .final-stats .stat b { font-size: 30px; display: block; margin: 2px 0 0; }
+  .hint { margin-top: 16px; font-size: 12px; color: #c9a276; }
+  kbd {
+    background: #fff3d6; color: #3a2410; border-radius: 5px;
+    padding: 1px 6px; font-family: inherit; font-weight: 700; font-size: 12px;
+  }
+</style>
+</head>
+<body>
+<div id="stage">
+
+  <!-- Canvas: the kitchen scene is drawn here by render.js -->
+  <canvas id="game" width="1280" height="860"></canvas>
+
+  <!-- Top strip: brand, day progress, pause -->
+  <div id="hud-top">
+    <div class="brand">SIZZLE <small>STATION</small></div>
+    <div id="hud-day-wrap">
+      <span class="lbl">DAY <span id="hud-day-num">1</span></span>
+      <div id="hud-day"><div id="hud-day-fill"></div></div>
+      <span id="hud-day-text">0:00 / 3:00</span>
+    </div>
+    <button id="btn-pause" type="button" aria-label="Pause game">II Pause</button>
+  </div>
+
+  <!-- Bottom HUD bar: order board + timer + score -->
+  <div id="hud-bar">
+    <section id="hud-order-board" class="hud-panel" aria-label="Order board">
+      <h2>Order Board</h2>
+      <div class="orders" id="hud-orders">
+        <div class="order-empty">No orders yet — the lunch rush is coming…</div>
+      </div>
+    </section>
+
+    <section id="hud-stats" class="hud-panel" aria-label="Score and timer">
+      <div id="hud-timer-row">
+        <span class="lbl">TIME</span>
+        <div id="hud-timer"><div id="hud-timer-fill"></div></div>
+        <span id="hud-timer-text">3:00</span>
+      </div>
+      <div id="hud-score-row">
+        <span class="stat" id="hud-score">SCORE<b>0</b></span>
+        <span class="stat" id="hud-coins">COINS<b>0</b></span>
+        <span class="stat" id="hud-combo">COMBO<b>x1</b></span>
+      </div>
+      <div id="hud-keys">Keys <kbd>1</kbd>–<kbd>6</kbd> grab ingredients &nbsp;·&nbsp; <kbd>Space</kbd> serve &nbsp;·&nbsp; <kbd>P</kbd> pause</div>
+    </section>
+  </div>
+
+  <!-- Floating feedback toast (serve / burn / wrong-ingredient pops, filled by JS) -->
+  <div id="hud-toast" aria-live="polite"></div>
+
+  <!-- Title screen -->
+  <div id="overlay-title" class="overlay">
+    <div class="card">
+      <h1><span class="flame">&#128293;</span> SIZZLE STATION</h1>
+      <p class="tagline">One tiny kitchen. One very hungry lunch rush.</p>
+      <div class="howto">
+        <div><b>1</b>&nbsp; Read the order board — every customer has a patience timer.</div>
+        <div><b>2</b>&nbsp; Click ingredients or press <b>1</b>–<b>6</b> to build the dish on the plate.</div>
+        <div><b>3</b>&nbsp; Cook it on the stove — pull it off before it burns!</div>
+        <div><b>4</b>&nbsp; Serve before patience runs out to earn score, coins and combo.</div>
+      </div>
+      <p>Wrong ingredient? Toss it in the bin. Burnt dish? Trash it and start over.<br>
+      Survive the 3-minute day and chase a 3-star rating on every order.</p>
+      <button id="btn-start" class="big-btn" type="button">▶&nbsp; START COOKING</button>
+      <p class="hint">Mouse + keyboard &nbsp;·&nbsp; Sound: WebAudio bleeps, no downloads &nbsp;·&nbsp; Best on desktop Chrome</p>
+    </div>
+  </div>
+
+  <!-- Win screen -->
+  <div id="overlay-win" class="overlay" hidden>
+    <div class="card">
+      <h2>&#127942; DAY COMPLETE!</h2>
+      <p>You survived the lunch rush — the kitchen is still standing.</p>
+      <div class="final-stats">
+        <span class="stat">SCORE<b id="win-score">0</b></span>
+        <span class="stat">COINS<b id="win-coins">0</b></span>
+        <span class="stat">SERVED<b id="win-served">0</b></span>
+        <span class="stat">BEST COMBO<b id="win-combo">x1</b></span>
+      </div>
+      <button id="btn-restart" class="big-btn" type="button">↻&nbsp; COOK AGAIN</button>
+      <p class="hint">Tip: serve fast for 3 stars — patience is worth more than speed alone.</p>
+    </div>
+  </div>
+
+  <!-- Lose screen -->
+  <div id="overlay-lose" class="overlay" hidden>
+    <div class="card">
+      <h2>&#128549; RUSH OVERWHELMED YOU</h2>
+      <p>Too many customers walked out hungry. The kitchen needs a better chef — that chef is you, on the next try.</p>
+      <div class="final-stats">
+        <span class="stat">SCORE<b id="lose-score">0</b></span>
+        <span class="stat">COINS<b id="lose-coins">0</b></span>
+        <span class="stat">SERVED<b id="lose-served">0</b></span>
+        <span class="stat">WALKED OUT<b id="lose-lost">0</b></span>
+      </div>
+      <button id="btn-restart-lose" class="big-btn" type="button">↻&nbsp; TRY AGAIN</button>
+      <p class="hint">Tip: cook the dish with the shortest patience first.</p>
+    </div>
+  </div>
+
+  <!-- Pause screen -->
+  <div id="overlay-pause" class="overlay" hidden>
+    <div class="card">
+      <h2>PAUSED</h2>
+      <p>Take a breath. The orders are waiting — but the burners are off.</p>
+      <button id="btn-resume" class="big-btn" type="button">▶&nbsp; RESUME</button>
+      <button id="btn-quit-pause" class="ghost-btn" type="button">Restart day</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- Game scripts, in dependency order (classic scripts, no modules, no network). -->
+<script src="src/config.js"></script>
+<script src="src/orders.js"></script>
+<script src="src/kitchen.js"></script>
+<script src="src/audio.js"></script>
+<script src="src/render.js"></script>
+<script src="src/input.js"></script>
+<script src="src/main.js"></script>
+<script src="src/shots.js"></script>
+</body>
+</html>
